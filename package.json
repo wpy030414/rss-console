@@ -1,6 +1,6 @@
 {
   "name": "rss-console",
-  "version": "26.2.26",
+  "version": "26.2.26.2059",
   "private": true,
   "type": "module",
   "scripts": {

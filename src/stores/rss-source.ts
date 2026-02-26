@@ -81,8 +81,6 @@ export const useRSSSource = defineStore(
       resolve()
     }
 
-    setInterval(() => console.debug(maintainingMutex), 1000)
-
     return { value, add, update }
   },
   { persist: true },

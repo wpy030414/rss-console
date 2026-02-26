@@ -5,7 +5,10 @@ import {
   mdiImage,
   mdiImageRemove,
   mdiMenu,
+  mdiMessage,
+  mdiMessageBadge,
   mdiPlus,
+  mdiSync,
   mdiWeatherNight,
   mdiWhiteBalanceSunny,
 } from '@mdi/js'
@@ -13,20 +16,26 @@ import { useRSSSource } from './stores/rss-source'
 import RssContent from './components/RssContent.vue'
 import { ref } from 'vue'
 import { useMessages } from './stores/msg'
-import { useDark } from './stores/dark'
+import { useSetting } from './stores/setting'
 import router from './router'
 
 useRSSSource().update()
+if (router.currentRoute.value.fullPath == '/' && useRSSSource().value.length > 0) {
+  router.push('/' + useRSSSource().value[0]!.uuid)
+}
 
 const showDrawer = ref(false)
 
-const hideImg = ref(false)
+const keyword = ref('')
 
-function handleHideImage() {
-  document.body.classList.toggle('hide-img')
-  hideImg.value = document.body.classList.contains('hide-img')
+async function handleRefresh() {
+  await useRSSSource().update()
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  })
+  useMessages().push('已刷新')
 }
-handleHideImage()
 
 function handleAddSource() {
   const addr = prompt('请输入 RSS 源地址')
@@ -62,15 +71,18 @@ let counter = 0
 function handleThank() {
   switch (counter++) {
     case 0:
-      useMessages().push({ text: '不许感谢', color: 'pink' })
+      useMessages().push('不许感谢')
       break
     case 1:
-      useMessages().push({ text: '不许感谢！', color: 'red' })
+      useMessages().push({ text: '不许感谢！', color: 'pink' })
       break
     case 2:
-      useMessages().push({ text: '不许感谢！！！（大声）', color: 'red' })
+      useMessages().push({ text: '不许感谢！！', color: 'red' })
       break
     case 3:
+      useMessages().push({ text: '不许感谢呱！！！（大声）', color: 'red' })
+      break
+    case 4:
       useMessages().push('哼，不理你了......')
       break
   }
@@ -78,31 +90,64 @@ function handleThank() {
 </script>
 
 <template>
-  <v-theme-provider :theme="useDark().value ? 'dark' : 'light'">
-    <v-responsive class="border rounded">
+  <v-theme-provider :theme="useSetting().dark ? 'dark' : 'light'">
+    <v-responsive>
       <v-app>
-        <v-app-bar title="RSS 控制台">
+        <v-app-bar>
           <template v-slot:prepend>
             <v-btn :icon="mdiMenu" @click="showDrawer = !showDrawer"></v-btn>
           </template>
 
+          <v-text-field
+            v-model="keyword"
+            label="搜索关键字"
+            variant="solo-inverted"
+            density="compact"
+            hide-details
+          ></v-text-field>
+
           <template v-slot:append>
-            <v-btn
-              :icon="useDark().value ? mdiWeatherNight : mdiWhiteBalanceSunny"
-              @click="useDark().toggle()"
-            ></v-btn>
-            <v-btn :icon="hideImg ? mdiImageRemove : mdiImage" @click="handleHideImage"></v-btn>
+            <v-btn :icon="mdiSync" @click="handleRefresh"></v-btn>
           </template>
         </v-app-bar>
 
         <v-navigation-drawer v-model="showDrawer" class="drawer">
+          <template v-slot:prepend>
+            <div class="py-6 text-center">
+              <v-btn
+                :icon="useSetting().dark ? mdiWeatherNight : mdiWhiteBalanceSunny"
+                size="small"
+                class="mr-6"
+                @click="useSetting().toggleDark()"
+              ></v-btn>
+
+              <v-btn
+                :icon="useSetting().hideImage ? mdiImageRemove : mdiImage"
+                size="small"
+                class="mr-6"
+                @click="useSetting().toggleHideImage()"
+              ></v-btn>
+
+              <v-btn
+                :icon="useSetting().showUnreadOnly ? mdiMessageBadge : mdiMessage"
+                size="small"
+                @click="useSetting().toggleShowUnreadOnly()"
+              ></v-btn>
+            </div>
+          </template>
+
+          <v-divider></v-divider>
+
           <v-list>
             <v-list-item
+              v-if="useRSSSource().value.length"
               v-for="s in useRSSSource().value"
               :title="s.title"
-              :value="'/' + s.uuid"
+              :active="'/' + s.uuid === $route.fullPath"
               :to="'/' + s.uuid"
             ></v-list-item>
+
+            <v-empty-state v-else text="您需要先新增 RSS 源"></v-empty-state>
           </v-list>
 
           <template v-slot:append>
@@ -124,7 +169,7 @@ function handleThank() {
               </div>
 
               <div class="d-flex align-center">
-                <v-btn :color="counter > 3 ? 'grey' : 'pink'" size="x-small" @click="handleThank"
+                <v-btn :color="counter > 4 ? 'grey' : 'pink'" size="x-small" @click="handleThank"
                   >感谢</v-btn
                 >
               </div>
@@ -134,12 +179,18 @@ function handleThank() {
 
         <v-main>
           <v-container>
-            <rss-content v-model="$route.fullPath"></rss-content>
+            <rss-content v-model:uuid="$route.fullPath" v-model:keyword="keyword"></rss-content>
           </v-container>
         </v-main>
       </v-app>
 
-      <v-snackbar-queue v-model="useMessages().messages" :total-visible="5"></v-snackbar-queue>
+      <v-snackbar-queue
+        v-model="useMessages().messages"
+        :total-visible="5"
+        closable
+        close-text="嗷"
+        location="top"
+      ></v-snackbar-queue>
     </v-responsive>
   </v-theme-provider>
 </template>
