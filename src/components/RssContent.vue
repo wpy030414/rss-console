@@ -5,13 +5,18 @@ import { computed } from 'vue'
 const uuid = defineModel<string>()
 
 const source = computed(() => useRSSSource().value.find((s) => '/' + s.uuid === uuid.value))
+
+function handleDoRead(o: any) {
+  o.read = !o.read
+  useRSSSource().$persist()
+}
 </script>
 
 <template>
   <v-card
     v-if="source"
     v-for="o of source.dataCache"
-    :key="o.title"
+    :key="o.guid._text"
     class="mb-4 py-2"
     :class="o.read ? 'read' : ''"
   >
@@ -30,7 +35,7 @@ const source = computed(() => useRSSSource().value.find((s) => '/' + s.uuid === 
         class="mx-4"
         size="x-small"
         :color="o.read ? 'green' : 'red'"
-        @click="o.read = !o.read"
+        @click="handleDoRead(o)"
         >{{ o.read ? '等待再阅' : '已阅' }}</v-btn
       >
     </div>
@@ -42,9 +47,20 @@ const source = computed(() => useRSSSource().value.find((s) => '/' + s.uuid === 
 <style scoped>
 .read {
   opacity: 0.6;
+
+  & .desp-box {
+    padding: 0;
+    max-height: 0px;
+    opacity: 0;
+  }
 }
 
 .desp-box {
+  overflow-y: auto;
+  max-height: 75vh;
+  opacity: 1;
+  transition: all 0.5s;
+
   & * {
     max-width: 100%;
   }

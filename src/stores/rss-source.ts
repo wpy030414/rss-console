@@ -70,7 +70,11 @@ export const useRSSSource = defineStore(
         const s = value.value[i]!
         try {
           const updated = await url2RSSSource(s.addr, s.uuid)
-          value.value[i] = updated
+          const readMap = new Map(s.dataCache.map((e) => [e.guid._text, e.read]))
+          s.dataCache = updated.dataCache.map((e) => {
+            const read = readMap.get(e.guid._text)
+            return Object.assign({}, e, { read })
+          })
         } catch {}
       }
 
