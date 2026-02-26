@@ -24,6 +24,7 @@ export const useRSSSource = defineStore(
           compact: true,
           spaces: 2,
           trim: true,
+          alwaysArray: ['item'],
         }),
       )
 

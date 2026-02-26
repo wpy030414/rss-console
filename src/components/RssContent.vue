@@ -2,9 +2,101 @@
 import { useRSSSource } from '@/stores/rss-source'
 import { useSetting } from '@/stores/setting'
 import { computed } from 'vue'
+import DOMPurify from 'dompurify'
+
+/**
+ * @description 统一常量管理入口
+ */
+const RSS_CONFIG = {
+  IMAGE_PROXIES: ['https://images.weserv.nl/?url=', 'https://i0.wp.com/', 'https://wsrv.nl/?url='],
+
+  REFERRER_FREE_TAGS: new Set(['img', 'video', 'audio', 'iframe']),
+
+  PROXY_REQUIRED_DOMAINS: ['hdslb.com', 'bilibili.com', 'zhimg.com', 'qpic.cn'],
+
+  TRUSTED_IFRAME_DOMAINS: ['bilibili.com', 'b23.tv', 'youtube.com', 'music.163.com'],
+
+  ALLOWED_EXTENSIONS: {
+    TAGS: ['iframe', 'video', 'audio', 'source'],
+    ATTRS: [
+      'allow',
+      'allowfullscreen',
+      'frameborder',
+      'scrolling',
+      'controls',
+      'autoplay',
+      'muted',
+      'poster',
+      'referrerpolicy',
+    ],
+  },
+} as const
 
 const uuid = defineModel<string>('uuid')
 const keyword = defineModel<string>('keyword')
+
+/**
+ * @description DOMPurify
+ */
+DOMPurify.removeAllHooks()
+
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  const tagName = node.tagName?.toLowerCase()
+  if (!tagName) return
+
+  // 防盗链破解
+  if (RSS_CONFIG.REFERRER_FREE_TAGS.has(tagName)) {
+    node.setAttribute('referrerpolicy', 'no-referrer')
+  }
+
+  // 图片重定向
+  if (tagName === 'img') {
+    const src = node.getAttribute('src') || ''
+    const isStubborn = RSS_CONFIG.PROXY_REQUIRED_DOMAINS.some((d) => src.includes(d))
+
+    if (isStubborn) {
+      const primaryProxy = RSS_CONFIG.IMAGE_PROXIES[0]
+      const fallbackProxy = RSS_CONFIG.IMAGE_PROXIES[1]
+
+      node.setAttribute('src', `${primaryProxy}${encodeURIComponent(src)}`)
+
+      // 代理回退，最后直连
+      const fallbackScript = `
+          if(!this.dataset.retried){
+            this.dataset.retried=true;
+            this.src='${fallbackProxy}' + encodeURIComponent('${src}');
+          } else if(this.dataset.retried === 'true'){
+            this.dataset.retried='final';
+            this.src='${src}';
+          }
+        `.replace(/\s+/g, ' ') // 压缩
+
+      node.setAttribute('onerror', fallbackScript)
+    }
+  }
+
+  // <iframe>白名单机制
+  if (tagName === 'iframe') {
+    const src = node.getAttribute('src') || ''
+    const isTrusted = RSS_CONFIG.TRUSTED_IFRAME_DOMAINS.some((d) => src.includes(d))
+
+    if (isTrusted) {
+      // 播放器封面去重
+      node.parentNode?.querySelectorAll('img').forEach((img) => img.remove())
+    } else {
+      node.remove()
+    }
+  }
+})
+
+// html清洗
+const sanitizeHtml = (html?: string) => {
+  if (!html) return ''
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: RSS_CONFIG.ALLOWED_EXTENSIONS.TAGS,
+    ADD_ATTR: RSS_CONFIG.ALLOWED_EXTENSIONS.ATTRS,
+  })
+}
 
 const items = computed(() => {
   const s = useRSSSource().value.find((s) => '/' + s.uuid === uuid.value)
@@ -25,20 +117,30 @@ const items = computed(() => {
   <v-virtual-scroll v-if="items.length" :items="items" class="px-1 py-1" smooth-scroll>
     <template v-slot:default="{ item: o }">
       <transition tag="div" name="list">
-        <v-card class="mb-4 py-2" :class="o.read ? 'read' : ''" :key="o.guid._text">
-          <v-card-title>{{ o.title._text }}</v-card-title>
+        <v-card
+          class="mb-4 py-2"
+          :class="o.read ? 'read' : ''"
+          :key="o.guid?._text || o.guid?._cdata || o.link?._text"
+        >
+          <v-card-title>{{ o.title?._text || o.title?._cdata || '无标题' }}</v-card-title>
 
           <v-card-text
             class="desp-box"
             :class="useSetting().hideImage ? 'hide-img' : ''"
-            v-html="o.description._text"
+            v-html="sanitizeHtml(o.description?._text || o.description?._cdata)"
           ></v-card-text>
 
           <v-divider class="my-2"></v-divider>
 
           <div class="d-flex justify-space-between">
             <v-card-subtitle>
-              {{ o.author._text }} | {{ new Date(o.pubDate._text).toLocaleString() }} 添加
+              {{ o.author?._text || o.author?._cdata || '未知作者' }} |
+              {{
+                o.pubDate?._text || o.pubDate?._cdata
+                  ? new Date(o.pubDate?._text || o.pubDate?._cdata).toLocaleString()
+                  : '未知时间'
+              }}
+              添加
             </v-card-subtitle>
 
             <v-btn
