@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { xml2json } from 'xml-js'
+import router from '@/router'
 
 export interface RSSSource {
   uuid: string
@@ -24,6 +25,7 @@ export const useRSSSource = defineStore(
           compact: true,
           spaces: 2,
           trim: true,
+          alwaysArray: ['item'],
         }),
       )
 
@@ -53,6 +55,8 @@ export const useRSSSource = defineStore(
         const rssSource = await url2RSSSource(addr)
 
         value.value.unshift(rssSource)
+
+        router.push('/' + rssSource.uuid)
       } catch (e) {
         alert(e)
       }

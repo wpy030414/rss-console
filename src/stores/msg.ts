@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const useMessages = defineStore('messages', () => {
-  const messages = ref<(string | { text: string; color: string })[]>([])
+export type Msg = string | { text: string; color: string; onDismiss?: (reason: string) => void }
 
-  function push(msg: string | { text: string; color: string }) {
+export const useMessages = defineStore('messages', () => {
+  const messages = ref<Msg[]>([])
+
+  function push(msg: Msg) {
     messages.value.push(msg)
   }
 

@@ -14,7 +14,7 @@ import {
 } from '@mdi/js'
 import { useRSSSource } from './stores/rss-source'
 import RssContent from './components/RssContent.vue'
-import { ref } from 'vue'
+import { ref, watchEffect } from 'vue'
 import { useMessages } from './stores/msg'
 import { useSetting } from './stores/setting'
 import router from './router'
@@ -27,6 +27,17 @@ if (router.currentRoute.value.fullPath == '/' && useRSSSource().value.length > 0
 const showDrawer = ref(false)
 
 const keyword = ref('')
+
+let meowMutex = Promise.resolve()
+watchEffect(async () => {
+  if (keyword.value === '🐟' && !useSetting().cat) {
+    await meowMutex
+    meowMutex = Promise.withResolvers<void>().promise
+
+    useSetting().cat = true
+    keyword.value = '（鱼已被衔走）'
+  }
+})
 
 async function handleRefresh() {
   await useRSSSource().update()
@@ -65,32 +76,97 @@ function handleSubscribe() {
   useMessages().push('还没有做好这个功能......')
 }
 
-const version = import.meta.env.VITE_APP_VERSION
+const author = import.meta.env.APP_AUTHOR
+const version = import.meta.env.APP_VERSION
 
 let counter = 0
 function handleThank() {
-  switch (counter++) {
-    case 0:
-      useMessages().push('不许感谢')
-      break
-    case 1:
-      useMessages().push({ text: '不许感谢！', color: 'pink' })
-      break
-    case 2:
-      useMessages().push({ text: '不许感谢！！', color: 'red' })
-      break
-    case 3:
-      useMessages().push({ text: '不许感谢呱！！！（大声）', color: 'red' })
-      break
-    case 4:
-      useMessages().push('哼，不理你了......')
-      break
+  if (useSetting().cat) {
+    if (!counter && useSetting().yourNameRememberedByCat) {
+      counter = 1
+    }
+
+    switch (counter) {
+      case 0:
+        useMessages().push({
+          text: '谢谢喵~ 告诉咱你的名字吧',
+          color: '#FFC0CB',
+          onDismiss: (reason) => {
+            if (
+              reason === 'dismissed' &&
+              (useSetting().yourNameRememberedByCat = prompt('名字') || '')
+            ) {
+              counter++
+
+              useMessages().push({
+                text: `好的喵，${useSetting().yourNameRememberedByCat}，咱会一直记住的`,
+                color: '#FFC0CB',
+              })
+            } else {
+              useMessages().push({
+                text: '不说，也无妨喵',
+                color: '#FFC0CB',
+                onDismiss: () => (useSetting().cat = false),
+              })
+            }
+          },
+        })
+        break
+      case 1:
+        useMessages().push({
+          text: '找咱作甚？要听个小故事吗？',
+          color: '#FFC0CB',
+          onDismiss: (reason) => {
+            if (reason === 'dismissed') {
+              counter++
+
+              useMessages().push({
+                text: '从前有座山，山里有座庙...',
+                color: '#FFC0CB',
+              })
+            }
+          },
+        })
+        break
+      default:
+        useMessages().push({
+          text: '（似乎是睡着了，没有反应）',
+          color: '#FFC0CB',
+        })
+    }
+  } else {
+    switch (counter++) {
+      case 0:
+        useMessages().push('......')
+        break
+      case 1:
+        useMessages().push({
+          text: '不许感谢',
+          color: 'pink',
+        })
+        break
+      case 2:
+        useMessages().push({
+          text: '不许感谢！',
+          color: 'red',
+        })
+        break
+      case 3:
+        useMessages().push({
+          text: '不许感谢喵！！！（大声）',
+          color: 'red',
+        })
+        break
+      case 4:
+        useMessages().push('哼，无礼的人类，不理你了......')
+        break
+    }
   }
 }
 </script>
 
 <template>
-  <v-theme-provider :theme="useSetting().dark ? 'dark' : 'light'">
+  <v-theme-provider :theme="useSetting().dark ? 'dark' : 'light'" color="pink" with-background>
     <v-responsive>
       <v-app>
         <v-app-bar>
@@ -113,7 +189,7 @@ function handleThank() {
 
         <v-navigation-drawer v-model="showDrawer" class="drawer">
           <template v-slot:prepend>
-            <div class="py-6 text-center">
+            <div class="py-4 text-center">
               <v-btn
                 :icon="useSetting().dark ? mdiWeatherNight : mdiWhiteBalanceSunny"
                 size="small"
@@ -122,14 +198,14 @@ function handleThank() {
               ></v-btn>
 
               <v-btn
-                :icon="useSetting().hideImage ? mdiImageRemove : mdiImage"
+                :icon="useSetting().onlyShowIframe ? mdiImageRemove : mdiImage"
                 size="small"
                 class="mr-6"
                 @click="useSetting().toggleHideImage()"
               ></v-btn>
 
               <v-btn
-                :icon="useSetting().showUnreadOnly ? mdiMessageBadge : mdiMessage"
+                :icon="useSetting().pinUnread ? mdiMessageBadge : mdiMessage"
                 size="small"
                 @click="useSetting().toggleShowUnreadOnly()"
               ></v-btn>
@@ -142,16 +218,17 @@ function handleThank() {
             <v-list-item
               v-if="useRSSSource().value.length"
               v-for="s in useRSSSource().value"
-              :title="s.title"
               :active="'/' + s.uuid === $route.fullPath"
               :to="'/' + s.uuid"
-            ></v-list-item>
+            >
+              <p class="my-0 force-marquee">{{ s.title }}</p>
+            </v-list-item>
 
             <v-empty-state v-else text="您需要先新增 RSS 源"></v-empty-state>
           </v-list>
 
           <template v-slot:append>
-            <div class="py-6 text-center">
+            <div class="py-4 text-center">
               <v-btn :icon="mdiPlus" size="small" class="mr-6" @click="handleAddSource"></v-btn>
 
               <v-btn :icon="mdiBellRing" size="small" class="mr-6" @click="handleSubscribe"></v-btn>
@@ -161,9 +238,12 @@ function handleThank() {
 
             <v-divider></v-divider>
 
-            <div class="d-flex justify-space-between px-4">
+            <div class="d-flex justify-space-between px-4 py-1">
               <div class="text-label-small">
-                <p class="my-0 mt-2">由<b>杏仁鹿</b>强力驱动！</p>
+                <p class="my-0 mt-2">
+                  由<b>{{ author }}</b
+                  >强力驱动！
+                </p>
 
                 <p class="my-0 mb-2">Ver. {{ version }}</p>
               </div>
@@ -208,10 +288,45 @@ function handleThank() {
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url('https://media.prts.wiki/9/96/%E7%AB%8B%E7%BB%98_%E8%B5%A4%E5%88%83%E6%98%8E%E9%9C%84%E9%99%88_1.png');
+  background-image: url('/立绘_陈千语.png');
   background-size: cover;
   background-position: center;
   opacity: 0.2;
   z-index: -1;
+}
+
+.force-marquee {
+  white-space: nowrap;
+  animation: marquee 10s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(0);
+  }
+
+  80% {
+    transform: translateX(-100%);
+  }
+
+  85% {
+    opacity: 1;
+    transform: translateX(-100%);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
 }
 </style>

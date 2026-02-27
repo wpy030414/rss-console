@@ -23,4 +23,6 @@ export default defineConfig({
       cert: fs.readFileSync('public/192.168.30.60.pem'),
     },
   },
+  base: process.env.V_BASE_URL || '/',
+  envPrefix: ['V_', 'APP_', 'C_'],
 })

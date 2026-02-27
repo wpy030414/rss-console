@@ -1,6 +1,6 @@
 {
   "name": "rss-console",
-  "version": "26.2.26.2059",
+  "version": "26.2.27",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "dompurify": "^3.3.1",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "vue": "^3.5.29",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@mdi/js": "^7.4.47",
     "@tsconfig/node24": "^24.0.4",
+    "@types/dompurify": "^3.2.0",
     "@types/node": "^24.10.13",
     "@vitejs/plugin-vue": "^6.0.4",
     "@vue/tsconfig": "^0.8.1",
