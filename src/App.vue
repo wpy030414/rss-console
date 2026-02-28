@@ -12,161 +12,85 @@ import {
   mdiWeatherNight,
   mdiWhiteBalanceSunny,
 } from '@mdi/js'
-import { useRSSSource } from './stores/rss-source'
-import RssContent from './components/RssContent.vue'
-import { ref, watchEffect } from 'vue'
-import { useMessages } from './stores/msg'
-import { useSetting } from './stores/setting'
-import router from './router'
 
-useRSSSource().update()
-if (router.currentRoute.value.fullPath == '/' && useRSSSource().value.length > 0) {
-  router.push('/' + useRSSSource().value[0]!.uuid)
-}
+import { ref, watch } from 'vue'
+
+import { useRoute, useRouter } from 'vue-router'
+
+import { useCat } from './stores/cat'
+import { useMessages } from './stores/message'
+import { useRSSSources } from './stores/rss-source'
+import { useSetting } from './stores/setting'
+
+const router = useRouter()
+const route = useRoute()
+const cat = useCat()
+const messages = useMessages()
+const rssSources = useRSSSources()
+const setting = useSetting()
+
+rssSources.update()
 
 const showDrawer = ref(false)
 
 const keyword = ref('')
 
-let meowMutex = Promise.resolve()
-watchEffect(async () => {
-  if (keyword.value === '🐟' && !useSetting().cat) {
-    await meowMutex
-    meowMutex = Promise.withResolvers<void>().promise
+watch(
+  keyword,
+  (n) => {
+    cat.feed(keyword)
 
-    useSetting().cat = true
-    keyword.value = '（鱼已被衔走）'
-  }
-})
+    router.push({
+      query: {
+        ...route.query,
+        keyword: n || undefined,
+      },
+    })
+  },
+  { immediate: true },
+)
 
 async function handleRefresh() {
-  await useRSSSource().update()
+  await rssSources.update()
   window.scrollTo({
     top: 0,
     behavior: 'smooth',
   })
-  useMessages().push('已刷新')
+  messages.push('已刷新')
 }
 
 function handleAddSource() {
   const addr = prompt('请输入 RSS 源地址')
   if (addr) {
-    useRSSSource().add(addr)
-    useMessages().push('已添加')
+    rssSources.add(addr)
+    messages.push('已添加')
   }
 }
 
 function handleRemoveSource() {
-  const uuid = router.currentRoute.value.fullPath.slice(1)
-  if (uuid) {
-    const source = useRSSSource().value.find((s) => s.uuid === uuid)
-    if (!source) {
-      useMessages().push('当前 RSS 源不存在')
-      return
-    }
+  const uuid = route.params.uuid
+  const source = rssSources.value.find((s) => s.uuid === uuid)
+  if (!source) {
+    messages.push('当前 RSS 源不存在')
+    return
+  }
 
-    if (confirm('真的要移除当前 RSS 源吗？')) {
-      useRSSSource().value = useRSSSource().value.filter((s) => s.uuid !== uuid)
-      useMessages().push('已移除')
-    }
+  if (confirm('真的要移除当前 RSS 源吗？')) {
+    rssSources.value = rssSources.value.filter((s) => s.uuid !== uuid)
+    messages.push('已移除')
   }
 }
 
 function handleSubscribe() {
-  useMessages().push('还没有做好这个功能......')
+  messages.push('还没有做好这个功能......')
 }
 
 const author = import.meta.env.APP_AUTHOR
 const version = import.meta.env.APP_VERSION
-
-let counter = 0
-function handleThank() {
-  if (useSetting().cat) {
-    if (!counter && useSetting().yourNameRememberedByCat) {
-      counter = 1
-    }
-
-    switch (counter) {
-      case 0:
-        useMessages().push({
-          text: '谢谢喵~ 告诉咱你的名字吧',
-          color: '#FFC0CB',
-          onDismiss: (reason) => {
-            if (
-              reason === 'dismissed' &&
-              (useSetting().yourNameRememberedByCat = prompt('名字') || '')
-            ) {
-              counter++
-
-              useMessages().push({
-                text: `好的喵，${useSetting().yourNameRememberedByCat}，咱会一直记住的`,
-                color: '#FFC0CB',
-              })
-            } else {
-              useMessages().push({
-                text: '不说，也无妨喵',
-                color: '#FFC0CB',
-                onDismiss: () => (useSetting().cat = false),
-              })
-            }
-          },
-        })
-        break
-      case 1:
-        useMessages().push({
-          text: '找咱作甚？要听个小故事吗？',
-          color: '#FFC0CB',
-          onDismiss: (reason) => {
-            if (reason === 'dismissed') {
-              counter++
-
-              useMessages().push({
-                text: '从前有座山，山里有座庙...',
-                color: '#FFC0CB',
-              })
-            }
-          },
-        })
-        break
-      default:
-        useMessages().push({
-          text: '（似乎是睡着了，没有反应）',
-          color: '#FFC0CB',
-        })
-    }
-  } else {
-    switch (counter++) {
-      case 0:
-        useMessages().push('......')
-        break
-      case 1:
-        useMessages().push({
-          text: '不许感谢',
-          color: 'pink',
-        })
-        break
-      case 2:
-        useMessages().push({
-          text: '不许感谢！',
-          color: 'red',
-        })
-        break
-      case 3:
-        useMessages().push({
-          text: '不许感谢喵！！！（大声）',
-          color: 'red',
-        })
-        break
-      case 4:
-        useMessages().push('哼，无礼的人类，不理你了......')
-        break
-    }
-  }
-}
 </script>
 
 <template>
-  <v-theme-provider :theme="useSetting().dark ? 'dark' : 'light'" color="pink" with-background>
+  <v-theme-provider :theme="setting.dark ? 'dark' : 'light'">
     <v-responsive>
       <v-app>
         <v-app-bar>
@@ -191,23 +115,23 @@ function handleThank() {
           <template v-slot:prepend>
             <div class="py-4 text-center">
               <v-btn
-                :icon="useSetting().dark ? mdiWeatherNight : mdiWhiteBalanceSunny"
+                :icon="setting.dark ? mdiWeatherNight : mdiWhiteBalanceSunny"
                 size="small"
                 class="mr-6"
-                @click="useSetting().toggleDark()"
+                @click="setting.toggleDark"
               ></v-btn>
 
               <v-btn
-                :icon="useSetting().onlyShowIframe ? mdiImageRemove : mdiImage"
+                :icon="setting.onlyShowIframe ? mdiImageRemove : mdiImage"
                 size="small"
                 class="mr-6"
-                @click="useSetting().toggleHideImage()"
+                @click="setting.toggleHideImage"
               ></v-btn>
 
               <v-btn
-                :icon="useSetting().pinUnread ? mdiMessageBadge : mdiMessage"
+                :icon="setting.pinUnread ? mdiMessageBadge : mdiMessage"
                 size="small"
-                @click="useSetting().toggleShowUnreadOnly()"
+                @click="setting.toggleShowUnreadOnly"
               ></v-btn>
             </div>
           </template>
@@ -216,9 +140,9 @@ function handleThank() {
 
           <v-list>
             <v-list-item
-              v-if="useRSSSource().value.length"
-              v-for="s in useRSSSource().value"
-              :active="'/' + s.uuid === $route.fullPath"
+              v-if="rssSources.value.length"
+              v-for="s in rssSources.value"
+              :active="s.uuid === $route.params.uuid"
               :to="'/' + s.uuid"
             >
               <p class="my-0 force-marquee">{{ s.title }}</p>
@@ -249,7 +173,10 @@ function handleThank() {
               </div>
 
               <div class="d-flex align-center">
-                <v-btn :color="counter > 4 ? 'grey' : 'pink'" size="x-small" @click="handleThank"
+                <v-btn
+                  :color="cat.thankCounter > 4 ? 'grey' : 'pink'"
+                  size="x-small"
+                  @click="cat.thank"
                   >感谢</v-btn
                 >
               </div>
@@ -259,13 +186,13 @@ function handleThank() {
 
         <v-main>
           <v-container>
-            <rss-content v-model:uuid="$route.fullPath" v-model:keyword="keyword"></rss-content>
+            <router-view></router-view>
           </v-container>
         </v-main>
       </v-app>
 
       <v-snackbar-queue
-        v-model="useMessages().messages"
+        v-model="messages.value"
         :total-visible="5"
         closable
         close-text="嗷"
@@ -288,7 +215,7 @@ function handleThank() {
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url('/立绘_陈千语.png');
+  background-image: url('/drawer.png');
   background-size: cover;
   background-position: center;
   opacity: 0.2;

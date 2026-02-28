@@ -2,9 +2,9 @@ name: Build Vue SPA
 
 on:
   push:
-    branches: [ main, master, prod ]
+    branches: [main, master, prod]
   pull_request:
-    branches: [ main, master, prod ]
+    branches: [main, master, prod]
   workflow_dispatch:
 
 jobs:
@@ -14,22 +14,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 24
+      - name: Set up runtime
         uses: actions/setup-node@v4
-
-      - name: Install pnpm globally
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        run: pnpm i
+        with:
+          node-version: 24
 
       - name: Inject env param
         run: |
           REPO_NAME=$(echo ${{ github.repository }} | cut -d '/' -f 2)
           echo "V_BASE_URL=/$REPO_NAME/" >> $GITHUB_ENV
 
-      - name: Build Vue project
-        run: pnpm build
+      - name: Build project
+        run: |
+          npm install -g pnpm
+          pnpm i
+          pnpm build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

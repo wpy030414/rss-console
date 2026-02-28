@@ -1,7 +1,10 @@
 import { ref } from 'vue'
+
+import { useRouter } from 'vue-router'
+
 import { defineStore } from 'pinia'
-import { xml2json } from 'xml-js'
-import router from '@/router'
+
+import { XMLParser } from 'fast-xml-parser'
 
 export interface RSSSource {
   uuid: string
@@ -12,22 +15,22 @@ export interface RSSSource {
   })[]
 }
 
-export const useRSSSource = defineStore(
+export const useRSSSources = defineStore(
   'rss-source',
   () => {
+    const router = useRouter()
+
     const value = ref<RSSSource[]>([])
 
     let maintainingMutex = Promise.resolve()
 
     async function url2RSSSource(addr: string, uuid?: string): Promise<RSSSource> {
-      const _ = JSON.parse(
-        xml2json(await (await fetch(addr)).text(), {
-          compact: true,
-          spaces: 2,
-          trim: true,
-          alwaysArray: ['item'],
-        }),
-      )
+      const xml = await (await fetch(addr)).text()
+      const _ = new XMLParser({
+        isArray: (tagName) => tagName === 'item',
+        trimValues: true,
+        removeNSPrefix: true,
+      }).parse(xml)
 
       return {
         uuid:
@@ -37,7 +40,7 @@ export const useRSSSource = defineStore(
             const v = c === 'x' ? r : (r & 0x3) | 0x8
             return v.toString(16)
           }),
-        title: _.rss.channel.title._text,
+        title: _.rss.channel.title,
         addr,
         dataCache: Array.from(_.rss.channel.item || []).map((e) =>
           Object.assign({}, e, { read: false }),
@@ -74,9 +77,9 @@ export const useRSSSource = defineStore(
         const s = value.value[i]!
         try {
           const updated = await url2RSSSource(s.addr, s.uuid)
-          const readMap = new Map(s.dataCache.map((e) => [e.guid._text, e.read]))
+          const readMap = new Map(s.dataCache.map((e) => [e.guid, e.read]))
           s.dataCache = updated.dataCache.map((e) => {
-            const read = readMap.get(e.guid._text)
+            const read = readMap.get(e.guid)
             return Object.assign({}, e, { read })
           })
         } catch {}

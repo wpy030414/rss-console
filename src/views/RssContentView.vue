@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { useRSSSource } from '@/stores/rss-source'
-import { useSetting } from '@/stores/setting'
 import { computed } from 'vue'
+
+import { useRoute } from 'vue-router'
+
 import DOMPurify from 'dompurify'
 
-const uuid = defineModel<string>('uuid')
-const keyword = defineModel<string>('keyword')
+import { useRSSSources } from '@/stores/rss-source'
+import { useSetting } from '@/stores/setting'
+
+const route = useRoute()
+const rssSources = useRSSSources()
+const setting = useSetting()
 
 ;(() => {
   DOMPurify.removeAllHooks()
@@ -68,13 +73,16 @@ function sanitizeHtml(html?: string) {
 }
 
 const items = computed(() => {
-  const s = useRSSSource().value.find((s) => '/' + s.uuid === uuid.value)
+  const s = rssSources.value.find((s) => s.uuid === route.params.uuid)
+  debugger
   if (!s) {
     return []
   }
 
-  const d = s.dataCache.filter((e) => JSON.stringify(e).includes(keyword.value || ''))
-  if (useSetting().pinUnread) {
+  const d = s.dataCache.filter((e) =>
+    JSON.stringify(e).includes((route.query.keyword as string) || ''),
+  )
+  if (setting.pinUnread) {
     return d.toSorted((a, b) => Number(a.read) - Number(b.read))
   } else {
     return d
@@ -88,31 +96,27 @@ function handleGo(url: string) {
 
 <template>
   <v-virtual-scroll v-if="items.length" :items="items" class="px-1 py-1" smooth-scroll>
-    <template v-slot:default="{ item: o }">
+    <template v-slot:default="{ item: o, index: i }">
       <transition tag="div" name="list">
-        <v-card
-          class="mb-4 pt-2 pb-3"
-          :class="o.read ? 'read' : ''"
-          :key="o.guid?._text || o.link?._text"
-        >
-          <v-card-title>{{ o.title?._text || '无标题' }}</v-card-title>
+        <v-card class="mb-4 pt-2 pb-3" :class="o.read ? 'read' : ''" :key="o?.guid || i">
+          <v-card-title>{{ o.title || '无标题' }}</v-card-title>
 
           <v-card-subtitle>
-            {{ o.author?._text || '未知作者' }} |
-            {{ o.pubDate?._text ? new Date(o.pubDate?._text).toLocaleString() : '未知时间' }}
+            {{ o?.author || '未知作者' }} |
+            {{ o?.pubDate ? new Date(o.pubDate).toLocaleString() : '未知时间' }}
             添加
           </v-card-subtitle>
 
           <v-card-text
             class="desp-box"
-            :class="useSetting().onlyShowIframe ? 'only-show-iframe' : ''"
-            v-html="sanitizeHtml(o.description?._text)"
+            :class="setting.onlyShowIframe ? 'only-show-iframe' : ''"
+            v-html="sanitizeHtml(o.description)"
           ></v-card-text>
 
           <v-divider class="my-3"></v-divider>
 
           <div class="d-flex justify-space-between">
-            <v-btn class="mx-4" size="x-small" @click="handleGo(o.link?._text)">查看原文</v-btn>
+            <v-btn class="mx-4" size="x-small" @click="handleGo(o?.link)">查看原文</v-btn>
 
             <v-btn
               class="mx-4"
@@ -131,7 +135,7 @@ function handleGo(url: string) {
     v-else
     headline="空空如也"
     title="Nothing at all"
-    image="/表情套组_虫动_很快就好！.png"
+    image="empty-state.png"
   ></v-empty-state>
 </template>
 
