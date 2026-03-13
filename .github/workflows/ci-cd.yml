@@ -19,11 +19,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Inject env param
-        run: |
-          REPO_NAME=$(echo ${{ github.repository }} | cut -d '/' -f 2)
-          echo "V_BASE_URL=/$REPO_NAME/" >> $GITHUB_ENV
-
       - name: Build project
         run: |
           npm install -g pnpm
